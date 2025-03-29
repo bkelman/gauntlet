@@ -12,6 +12,7 @@
 		E84B7DF82D977ECE000741A2 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = E84B7DF72D977ECE000741A2 /* FirebaseCrashlytics */; };
 		E84B7DFA2D977ECE000741A2 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = E84B7DF92D977ECE000741A2 /* FirebaseFirestore */; };
 		E84B7DFC2D977ECE000741A2 /* FirebaseFirestoreSwift in Frameworks */ = {isa = PBXBuildFile; productRef = E84B7DFB2D977ECE000741A2 /* FirebaseFirestoreSwift */; };
+		E84B7E0A2D9792CE000741A2 /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = E84B7E092D9792C5000741A2 /* .gitignore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,6 +38,7 @@
 		E84B7DDA2D977501000741A2 /* Gauntlet TriviaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Gauntlet TriviaUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		E84B7DED2D9777A0000741A2 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		E84B7E082D97902F000741A2 /* Color+Gauntlet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Gauntlet.swift"; sourceTree = "<group>"; };
+		E84B7E092D9792C5000741A2 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -89,6 +91,7 @@
 		E84B7DB72D977500000741A2 = {
 			isa = PBXGroup;
 			children = (
+				E84B7E092D9792C5000741A2 /* .gitignore */,
 				E84B7E072D97901E000741A2 /* Utilities */,
 				E84B7DC22D977500000741A2 /* Gauntlet Trivia */,
 				E84B7DD32D977501000741A2 /* Gauntlet TriviaTests */,
@@ -243,6 +246,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E84B7E0A2D9792CE000741A2 /* .gitignore in Resources */,
 				E84B7DEE2D9777A0000741A2 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
