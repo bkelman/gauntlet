@@ -31,21 +31,39 @@ struct ContentView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("🏆 Gauntlet Trivia")
-                .font(.largeTitle)
-                .bold()
-                .padding(.top)
+            VStack(spacing: 8) {
+                Text("🏆 Gauntlet Trivia")
+                    .font(.system(size: 36, weight: .bold, design: .rounded))
 
-            Text("Lives: \(lives)   |   Score: \(score)")
-                .font(.subheadline)
-                .foregroundColor(.gray)
+                HStack {
+                    Label("Lives: \(lives)", systemImage: "heart.fill")
+                        .foregroundColor(.red)
+                    Spacer()
+                    Label("Score: \(score)", systemImage: "bolt.fill")
+                        .foregroundColor(.yellow)
+                }
+                .font(.headline)
+                .padding(.horizontal)
+            }
+            .padding(.top)
+
 
             Spacer()
 
             if loading {
                 ProgressView("Loading Trivia...")
             } else if gameLocked {
-                Text("You've already played today.\nCome back tomorrow!")
+                VStack(spacing: 16) {
+                    Image(systemName: "lock.shield.fill")
+                        .resizable()
+                        .frame(width: 60, height: 60)
+                        .foregroundColor(.gray)
+
+                    Text("You've already played today.\nCome back tomorrow!")
+                        .multilineTextAlignment(.center)
+                        .font(.title2)
+                        .padding()
+                }
                     .multilineTextAlignment(.center)
                     .font(.title2)
                     .padding()
@@ -59,28 +77,55 @@ struct ContentView: View {
 
                 ForEach(current.options, id: \.self) { option in
                     Button(action: {
-                        handleAnswer(option)
+                        withAnimation(.easeIn(duration: 0.2)) {
+                            handleAnswer(option)
+                        }
                     }) {
                         Text(option)
+                            .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()
                             .background(Color.blue.opacity(0.2))
-                            .cornerRadius(10)
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.blue, lineWidth: 1)
+                            )
                     }
+                    .buttonStyle(.plain)
+
                 }
             } else {
-                Text("Game Over! Final Score: \(score)")
-                    .font(.headline)
-                    .foregroundColor(.red)
+                VStack(spacing: 16) {
+                    Image(systemName: "flag.checkered")
+                        .resizable()
+                        .frame(width: 60, height: 60)
+                        .foregroundColor(.red)
+
+                    Text("Game Over! Final Score: \(score)")
+                        .font(.title2)
+                        .foregroundColor(.red)
+                }
             }
 
 
-            if showFeedback {
-                Text(feedbackText)
-                    .font(.headline)
-                    .foregroundColor(.orange)
-                    .padding(.top)
+            ZStack {
+                if showFeedback {
+                    Text(feedbackText)
+                        .font(.title2)
+                        .bold()
+                        .foregroundColor(feedbackText.contains("✅") ? .green : .red)
+                        .transition(.opacity)
+                } else {
+                    // Reserve space so layout doesn't jump
+                    Text(" ")
+                        .font(.title2)
+                        .bold()
+                        .hidden()
+                        .frame(height: 28)
+                }
             }
+            .animation(.easeInOut, value: showFeedback)
 
             Spacer()
         }
