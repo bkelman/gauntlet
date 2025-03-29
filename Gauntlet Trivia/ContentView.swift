@@ -27,6 +27,7 @@ struct ContentView: View {
     @State private var score = 0
     @State private var showFeedback = false
     @State private var feedbackText = ""
+    @State private var gameLocked = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -43,6 +44,11 @@ struct ContentView: View {
 
             if loading {
                 ProgressView("Loading Trivia...")
+            } else if gameLocked {
+                Text("You've already played today.\nCome back tomorrow!")
+                    .multilineTextAlignment(.center)
+                    .font(.title2)
+                    .padding()
             } else if lives > 0 && currentQuestionIndex < questions.count {
                 let current = questions[currentQuestionIndex]
 
@@ -68,6 +74,7 @@ struct ContentView: View {
                     .foregroundColor(.red)
             }
 
+
             if showFeedback {
                 Text(feedbackText)
                     .font(.headline)
@@ -79,21 +86,43 @@ struct ContentView: View {
         }
         .padding()
         .onAppear {
-            if Auth.auth().currentUser == nil {
-                Auth.auth().signInAnonymously { result, error in
-                    if let error = error {
-                        print("❌ Error signing in: \(error.localizedDescription)")
-                    } else {
-                        print("✅ Signed in anonymously as user ID: \(result?.user.uid ?? "unknown")")
-                        loadTriviaForToday()
-                    }
+            if Auth.auth().currentUser != nil {
+                print("✅ Signed in as \(Auth.auth().currentUser?.email ?? "unknown user")")
+                checkDailyStatus()
+            } else {
+                print("❌ Not signed in — should never hit this if using SignInView properly")
+            }
+        }
+    }
+
+    func checkDailyStatus() {
+        guard let user = Auth.auth().currentUser else { return }
+
+        let db = Firestore.firestore()
+        let userRef = db.collection("users").document(user.uid)
+
+        userRef.getDocument { docSnapshot, error in
+            if let data = docSnapshot?.data(),
+               let lastPlayed = data["lastPlayedDate"] as? String {
+                
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyyMMdd"
+                let today = formatter.string(from: Date())
+
+                if lastPlayed == today {
+                    gameLocked = true
+                    loading = false
+                } else {
+                    loadTriviaForToday()
                 }
             } else {
+                // No user doc yet — treat as new player
                 loadTriviaForToday()
             }
         }
     }
 
+    
     func loadTriviaForToday() {
         let db = Firestore.firestore()
 
@@ -129,6 +158,7 @@ struct ContentView: View {
     }
 
     
+    
     // MARK: - Answer Logic
     func handleAnswer(_ selected: String) {
         guard lives > 0, currentQuestionIndex < questions.count else { return }
@@ -141,6 +171,10 @@ struct ContentView: View {
             lives -= 1
             feedbackText = "❌ Wrong! Correct: \(current.correctAnswer)"
         }
+        if lives == 0 || currentQuestionIndex >= questions.count {
+            markPlayedToday()
+            gameLocked = true
+        }
 
         showFeedback = true
 
@@ -148,8 +182,27 @@ struct ContentView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             showFeedback = false
             currentQuestionIndex += 1
+
+            if lives == 0 || currentQuestionIndex >= questions.count {
+                markPlayedToday()
+                gameLocked = true
+            }
         }
     }
+    
+    func markPlayedToday() {
+        guard let user = Auth.auth().currentUser else { return }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        let today = formatter.string(from: Date())
+
+        let db = Firestore.firestore()
+        let userRef = db.collection("users").document(user.uid)
+
+        userRef.setData(["lastPlayedDate": today], merge: true)
+    }
+
 }
 
 #Preview {

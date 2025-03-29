@@ -17,7 +17,7 @@ struct Gauntlet_TriviaApp: App {
     
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            SignInView()
         }
     }
 }
