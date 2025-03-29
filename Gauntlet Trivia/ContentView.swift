@@ -28,108 +28,114 @@ struct ContentView: View {
     @State private var showFeedback = false
     @State private var feedbackText = ""
     @State private var gameLocked = false
+    @State private var selectedOption: String? = nil
 
     var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                Text("🏆 Gauntlet Trivia")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-
-                HStack {
-                    Label("Lives: \(lives)", systemImage: "heart.fill")
-                        .foregroundColor(.red)
-                    Spacer()
-                    Label("Score: \(score)", systemImage: "bolt.fill")
-                        .foregroundColor(.yellow)
-                }
-                .font(.headline)
-                .padding(.horizontal)
-            }
-            .padding(.top)
-
-
-            Spacer()
-
-            if loading {
-                ProgressView("Loading Trivia...")
-            } else if gameLocked {
-                VStack(spacing: 16) {
-                    Image(systemName: "lock.shield.fill")
-                        .resizable()
-                        .frame(width: 60, height: 60)
-                        .foregroundColor(.gray)
-
-                    Text("You've already played today.\nCome back tomorrow!")
-                        .multilineTextAlignment(.center)
-                        .font(.title2)
-                        .padding()
-                }
-                    .multilineTextAlignment(.center)
-                    .font(.title2)
-                    .padding()
-            } else if lives > 0 && currentQuestionIndex < questions.count {
-                let current = questions[currentQuestionIndex]
-
-                Text(current.text)
-                    .font(.title2)
-                    .multilineTextAlignment(.center)
-                    .padding()
-
-                ForEach(current.options, id: \.self) { option in
-                    Button(action: {
-                        withAnimation(.easeIn(duration: 0.2)) {
-                            handleAnswer(option)
-                        }
-                    }) {
-                        Text(option)
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue.opacity(0.2))
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.blue, lineWidth: 1)
-                            )
+        ZStack {
+            Color.triviaBackground.ignoresSafeArea()
+            VStack(spacing: 20) {
+                VStack(spacing: 8) {
+                    Text("🏆 Gauntlet Trivia")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundColor(Color.triviaText)
+                    HStack {
+                        Label("Lives: \(lives)", systemImage: "heart.fill")
+                            .foregroundColor(.red)
+                        Spacer()
+                        Label("Score: \(score)", systemImage: "bolt.fill")
+                            .foregroundColor(.yellow)
                     }
-                    .buttonStyle(.plain)
-
+                    .font(.headline)
+                    .padding(.horizontal)
                 }
-            } else {
-                VStack(spacing: 16) {
-                    Image(systemName: "flag.checkered")
-                        .resizable()
-                        .frame(width: 60, height: 60)
-                        .foregroundColor(.red)
-
-                    Text("Game Over! Final Score: \(score)")
+                .padding(.top)
+                
+                
+                Spacer()
+                
+                if loading {
+                    ProgressView("Loading Trivia...")
+                } else if gameLocked {
+                    VStack(spacing: 16) {
+                        Image(systemName: "lock.shield.fill")
+                            .resizable()
+                            .frame(width: 60, height: 60)
+                            .foregroundColor(.gray)
+                        
+                        Text("You've already played today.\nCome back tomorrow!")
+                            .multilineTextAlignment(.center)
+                            .font(.title2)
+                            .padding()
+                            .foregroundColor(Color.triviaText)
+                    }
+                    .multilineTextAlignment(.center)
+                    .font(.title2)
+                    .padding()
+                } else if lives > 0 && currentQuestionIndex < questions.count {
+                    let current = questions[currentQuestionIndex]
+                    
+                    Text(current.text)
                         .font(.title2)
-                        .foregroundColor(.red)
-                }
-            }
-
-
-            ZStack {
-                if showFeedback {
-                    Text(feedbackText)
-                        .font(.title2)
-                        .bold()
-                        .foregroundColor(feedbackText.contains("✅") ? .green : .red)
-                        .transition(.opacity)
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(Color.triviaText)
+                        .padding()
+                    
+                    ForEach(current.options, id: \.self) { option in
+                        Button(action: {
+                            withAnimation(.easeIn(duration: 0.2)) {
+                                handleAnswer(option)
+                            }
+                        }) {
+                            Text(option)
+                                .font(.headline)
+                                .foregroundColor(
+                                    selectedOption == option
+                                        ? (option == questions[currentQuestionIndex].correctAnswer ? Color.triviaCorrect : Color.triviaWrong)
+                                        : Color.triviaText
+                                )
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.triviaButton)
+                                .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 } else {
-                    // Reserve space so layout doesn't jump
-                    Text(" ")
-                        .font(.title2)
-                        .bold()
-                        .hidden()
-                        .frame(height: 28)
+                    VStack(spacing: 16) {
+                        Image(systemName: "flag.checkered")
+                            .resizable()
+                            .frame(width: 60, height: 60)
+                            .foregroundColor(.red)
+                        
+                        Text("Game Over! Final Score: \(score)")
+                            .font(.title2)
+                            .foregroundColor(.red)
+                    }
                 }
+                
+                
+                ZStack {
+                    if showFeedback {
+                        Text(feedbackText)
+                            .font(.title2)
+                            .bold()
+                            .foregroundColor(feedbackText.contains("✅") ? .green : .red)
+                            .transition(.opacity)
+                    } else {
+                        // Reserve space so layout doesn't jump
+                        Text(" ")
+                            .font(.title2)
+                            .bold()
+                            .hidden()
+                            .frame(height: 28)
+                    }
+                }
+                .animation(.easeInOut, value: showFeedback)
+                
+                Spacer()
             }
-            .animation(.easeInOut, value: showFeedback)
-
-            Spacer()
+            .padding()
         }
-        .padding()
         .onAppear {
             if Auth.auth().currentUser != nil {
                 print("✅ Signed in as \(Auth.auth().currentUser?.email ?? "unknown user")")
@@ -206,6 +212,9 @@ struct ContentView: View {
     
     // MARK: - Answer Logic
     func handleAnswer(_ selected: String) {
+        
+        selectedOption = selected
+
         guard lives > 0, currentQuestionIndex < questions.count else { return }
 
         let current = questions[currentQuestionIndex]
@@ -232,6 +241,7 @@ struct ContentView: View {
                 markPlayedToday()
                 gameLocked = true
             }
+            selectedOption = nil
         }
     }
     
@@ -253,3 +263,4 @@ struct ContentView: View {
 #Preview {
     ContentView()
 }
+
