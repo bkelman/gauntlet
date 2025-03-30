@@ -23,75 +23,74 @@ struct PlayerGuessView: View {
     @State private var searchText = ""
     @State private var filteredSuggestions: [String] = []
     @State private var selectedGuess: String? = nil
-    @State private var timeRemaining: Double = 15.0 //timer duration (also update in startTimer() and ProgressView
+    @State private var timeRemaining: Double = 15.0
     @State private var timer: Timer?
     @State private var isTimerRunning = false
     @FocusState private var isSearchFieldFocused: Bool
+
+    let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        return formatter
+    }()
 
     var body: some View {
         ZStack {
             Color.triviaBackground.ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 16) {
-                    
+                VStack(spacing: 12) {
                     if isGameOver {
                         VStack(spacing: 16) {
                             Text("Game Over!")
                                 .font(.largeTitle)
                                 .foregroundColor(.white)
-                            
+
                             Text("Final Score: \(score)")
                                 .font(.title2)
-                                .foregroundColor(.white) //improve screen later
+                                .foregroundColor(.white)
                         }
                     } else {
-                        // 🔼 Lives + Score
                         HStack(alignment: .top) {
-                            // ⬅️ Left Side: Wordmark + Date
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Gauntlet Trivia")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-
-                                Text(formattedDate())
+                            VStack(alignment: .leading, spacing: 0) {
+                                HStack(spacing: 0) {
+                                    Text("GAUNTLET")
+                                        .foregroundColor(Color.primaryColor)
+                                        .font(.headline.bold())
+                                    Text(" TRIVIA")
+                                        .foregroundColor(Color.secondaryColor)
+                                        .font(.headline.bold())
+                                }
+                                Text(dateFormatter.string(from: Date()))
                                     .font(.caption)
                                     .foregroundColor(.gray)
+                                    .padding(.top, 1)
                             }
 
                             Spacer()
 
-                            // ➡️ Right Side: Lives + Score
-                            VStack(alignment: .trailing, spacing: 8) {
-                                // ❤️ Lives (video game style)
+                            VStack(spacing: 2) {
                                 HStack(spacing: 4) {
-                                    ForEach(0..<3, id: \.self) { index in
-                                        Image(systemName: "heart.fill")
+                                    ForEach(0..<3) { index in
+                                        Image(systemName: index < lives ? "heart.fill" : "heart")
                                             .foregroundColor(index < lives ? .red : .gray)
-                                            .shadow(radius: index < lives ? 2 : 0)
                                     }
                                 }
-
-                                // ⭐ Score
                                 HStack(spacing: 4) {
                                     Image(systemName: "star.fill")
-                                        .shadow(radius: 2)
-                                    Text("Score: \(score)")
+                                        .foregroundColor(Color.primaryColor)
+                                    Text("\(score)")
+                                        .foregroundColor(Color.primaryColor)
+                                        .font(.subheadline.bold())
                                 }
-                                .foregroundColor(Color.yellow)
                             }
                         }
                         .padding(.horizontal)
-                        .padding(.top, 8)
-                        
-                        // 🕓 Progress bar
-                        ProgressView(value: min(max(timeRemaining, 0), 15), total: 15)
-                            .progressViewStyle(LinearProgressViewStyle())
-                            .accentColor(Color.triviaButton)
-                            .scaleEffect(x: 1, y: 2)
-                            .padding(.horizontal)
-                        
-                        // 🖼️ Image
+                        .padding(.top, 4)
+
+                        Divider()
+                            .background(Color.white.opacity(0.1))
+
                         if let player = currentPlayer, !isGameOver {
                             AsyncImage(url: URL(string: player.imageURL)) { phase in
                                 switch phase {
@@ -125,31 +124,39 @@ struct PlayerGuessView: View {
                                                 .animation(.easeInOut(duration: 0.3), value: showFeedback)
                                         }
                                     }
-                                    .frame(height: 250) // 🖼 Controls the whole block's size
-
+                                    .frame(maxHeight: 225)
                                 case .failure(_):
                                     Text("⚠️ Image failed to load")
-
                                 case .empty:
                                     ProgressView()
-
                                 @unknown default:
                                     EmptyView()
                                 }
                             }
                         }
 
-                        
-                        // 🔍 Search field + suggestions
+                        ProgressView(value: min(max(timeRemaining, 0), 15), total: 15)
+                            .progressViewStyle(LinearProgressViewStyle())
+                            .accentColor(Color.primaryColor)
+                            .scaleEffect(x: 1, y: 2)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
+
                         VStack(alignment: .leading, spacing: 0) {
                             TextField("Search for player...", text: $searchText)
-                                .padding()
-                                .background(Color(.systemGray6).opacity(0.2))
-                                .cornerRadius(10)
+                                .padding(10)
+                                .background(Color.white.opacity(0.08))
                                 .foregroundColor(.white)
-                                .focused($isSearchFieldFocused)
                                 .autocorrectionDisabled(true)
                                 .textInputAutocapitalization(.never)
+                                .keyboardType(.default)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.primaryColor.opacity(0.6), lineWidth: 1)
+                                )
+                                .cornerRadius(8)
+                                .focused($isSearchFieldFocused)
                                 .onChange(of: searchText) {
                                     if searchText.count >= 3 {
                                         filteredSuggestions = allPlayerNames
@@ -161,8 +168,8 @@ struct PlayerGuessView: View {
                                         filteredSuggestions = []
                                     }
                                 }
-                            
-                            ForEach(filteredSuggestions, id: \.self) { name in
+
+                            ForEach(filteredSuggestions, id: \ .self) { name in
                                 Button(action: {
                                     selectedGuess = name
                                     searchText = name
@@ -176,27 +183,12 @@ struct PlayerGuessView: View {
                                 }
                             }
                         }
-                        
-                        /* 🟧 Submit button (removed because we're auto-submitting, and it's broken anyway)
-                         if selectedGuess != nil {
-                         Button("Submit Guess") {
-                         checkGuess()
-                         }
-                         .padding()
-                         .frame(maxWidth: .infinity)
-                         .background(Color.triviaButton)
-                         .foregroundColor(.white)
-                         .cornerRadius(10)
-                         }*/
-                        
                     }
                 }
-                            .padding()
-                            .frame(maxWidth: 400)
-                }
+                .padding()
+                .frame(maxWidth: 400)
+            }
             .ignoresSafeArea(.keyboard, edges: .bottom)
-
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .onAppear {
             loadAllPlayers()
