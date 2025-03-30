@@ -23,6 +23,9 @@ struct PlayerGuessView: View {
     @State private var searchText = ""
     @State private var filteredSuggestions: [String] = []
     @State private var selectedGuess: String? = nil
+    @State private var timeRemaining: Double = 15.0 //timer duration (also update in startTimer() and ProgressView
+    @State private var timer: Timer?
+    @State private var isTimerRunning = false
     @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
@@ -102,6 +105,12 @@ struct PlayerGuessView: View {
 
                     Text("Lives: \(lives) | Score: \(score)")
                         .foregroundColor(.white)
+                    
+                    ProgressView(value: min(max(timeRemaining, 0), 15), total: 15)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .accentColor(Color.triviaButton)
+                        .scaleEffect(x: 1, y: 2, anchor: .center)
+                        .padding(.horizontal)
 
                     if showFeedback {
                         Text(feedbackText)
@@ -146,6 +155,7 @@ struct PlayerGuessView: View {
                 self.allPlayers = documents.compactMap { try? $0.data(as: Player.self) }
                 self.currentIndex = 0
                 self.currentPlayer = self.allPlayers.first
+                startTimer() // start the timer for the first player
             }
     }
     
@@ -185,6 +195,7 @@ struct PlayerGuessView: View {
         } else {
             isGameOver = true
         }
+        startTimer()
     }
 
     func checkGuess() {
@@ -194,9 +205,10 @@ struct PlayerGuessView: View {
             showFeedback = true
             return
         }
-
+        
+        
         let isCorrect = selected.lowercased() == player.name.lowercased()
-
+        
         if isCorrect {
             score += 1
             feedbackText = "✅ Correct!"
@@ -207,15 +219,54 @@ struct PlayerGuessView: View {
 
         showFeedback = true
 
+        timer?.invalidate() // Stop the timer on manual submission
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             showFeedback = false
 
             if lives == 0 {
                 isGameOver = true
-            } else {
+                timer?.invalidate()
+            }
+            else {
                 loadNextPlayer()
             }
         }
     }
+    
+    func startTimer() {
+        timeRemaining = 15.0
+        isTimerRunning = true
+
+        timer?.invalidate() // stop any previous timer
+
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            timeRemaining -= 0.1
+            if timeRemaining <= 0 {
+                timer?.invalidate()
+                handleTimeout()
+            }
+        }
+    }
+    
+    func handleTimeout() {
+        guard let player = currentPlayer else { return }
+
+        lives -= 1
+        feedbackText = "⏰ Time’s up! That was \(player.name)"
+        showFeedback = true
+
+        if lives == 0 {
+            isGameOver = true
+            timer?.invalidate()
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showFeedback = false
+            loadNextPlayer()
+        }
+    }
+
 
 }
