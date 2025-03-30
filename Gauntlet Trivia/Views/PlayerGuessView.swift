@@ -3,6 +3,12 @@ import Firebase
 import FirebaseFirestore
 import FirebaseFirestoreSwift
 
+struct PlayerName: Identifiable {
+    var id = UUID()
+    var name: String
+    var seasons: Int
+}
+
 struct PlayerGuessView: View {
     @State private var currentPlayer: Player?
     @State private var userGuess = ""
@@ -13,7 +19,7 @@ struct PlayerGuessView: View {
     @State private var isGameOver = false
     @State private var allPlayers: [Player] = []
     @State private var currentIndex = 0
-    @State private var allPlayerNames: [String] = []
+    @State private var allPlayerNames: [PlayerName] = []
     @State private var searchText = ""
     @State private var filteredSuggestions: [String] = []
     @State private var selectedGuess: String? = nil
@@ -50,11 +56,15 @@ struct PlayerGuessView: View {
                             .disableAutocorrection(true)
                             .focused($isSearchFieldFocused)
                             .onChange(of: searchText) {
-                                filteredSuggestions = allPlayerNames
-                                    .filter { $0.lowercased().contains(searchText.lowercased()) }
-                                    .prefix(5)
-                                    .map { $0 }
-                                selectedGuess = nil
+                                if searchText.count >= 3 { //number of characters required for suggested search to appear
+                                    filteredSuggestions = allPlayerNames
+                                        .filter { $0.name.lowercased().contains(searchText.lowercased()) }
+                                        .sorted { $0.seasons > $1.seasons }
+                                        .prefix(5)
+                                        .map { $0.name }
+                                } else {
+                                    filteredSuggestions = []
+                                }
                             }
 
 
@@ -113,6 +123,7 @@ struct PlayerGuessView: View {
         }
         .onAppear {
             loadAllPlayers()
+            loadAllPlayerNames()
         }
     }
 
@@ -133,11 +144,34 @@ struct PlayerGuessView: View {
                 }
 
                 self.allPlayers = documents.compactMap { try? $0.data(as: Player.self) }
-                self.allPlayerNames = self.allPlayers.map { $0.name }
                 self.currentIndex = 0
                 self.currentPlayer = self.allPlayers.first
             }
     }
+    
+    func loadAllPlayerNames() {
+        let db = Firestore.firestore()
+        db.collection("playerNames").getDocuments { snapshot, error in
+            if let error = error {
+                print("❌ Error loading player names: \(error.localizedDescription)")
+                return
+            }
+
+            guard let documents = snapshot?.documents else {
+                print("⚠️ No player names found")
+                return
+            }
+
+            self.allPlayerNames = documents.compactMap { doc in
+                guard let name = doc["name"] as? String else { return nil }
+                let seasons = doc["seasons"] as? Int ?? 0
+                return PlayerName(name: name, seasons: seasons)
+            }
+
+            print("✅ Loaded \(self.allPlayerNames.count) player names")
+        }
+    }
+
     
     func loadNextPlayer() {
         userGuess = ""
