@@ -13,11 +13,17 @@ struct PlayerGuessView: View {
     @State private var isGameOver = false
     @State private var allPlayers: [Player] = []
     @State private var currentIndex = 0
+    @State private var allPlayerNames: [String] = []
+    @State private var searchText = ""
+    @State private var filteredSuggestions: [String] = []
+    @State private var selectedGuess: String? = nil
+    @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
         ZStack {
             Color.triviaBackground.ignoresSafeArea()
 
+        ScrollView {
             VStack(spacing: 24) {
                 if let player = currentPlayer, !isGameOver {
                     AsyncImage(url: URL(string: player.imageURL)) { phase in
@@ -34,20 +40,53 @@ struct PlayerGuessView: View {
                             EmptyView()
                         }
                     }
+                    VStack(alignment: .leading, spacing: 0) {
+                        TextField("Search for player...", text: $searchText)
+                            .padding()
+                            .background(Color(.systemGray6).opacity(0.2))
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                            .autocapitalization(.none)
+                            .disableAutocorrection(true)
+                            .focused($isSearchFieldFocused)
+                            .onChange(of: searchText) {
+                                filteredSuggestions = allPlayerNames
+                                    .filter { $0.lowercased().contains(searchText.lowercased()) }
+                                    .prefix(5)
+                                    .map { $0 }
+                                selectedGuess = nil
+                            }
 
-                    TextField("Who is this player?", text: $userGuess)
-                        .padding()
+
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ForEach(filteredSuggestions, id: \.self) { name in
+                                    Button(action: {
+                                        selectedGuess = name
+                                        searchText = name
+                                        filteredSuggestions = []
+                                        checkGuess()
+                                    }) {
+                                        Text(name)
+                                            .foregroundColor(.white)
+                                            .padding(.vertical, 4)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                            }
+                        }
+                        .frame(height: 120)
                         .background(Color(.systemGray6).opacity(0.2))
-                        .foregroundColor(.white)
                         .cornerRadius(10)
-                        .autocapitalization(.words)
+                    }
 
                     Button("Submit Guess") {
                         checkGuess()
                     }
+                    .disabled(selectedGuess == nil)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color.triviaButton)
+                    .background(selectedGuess == nil ? Color.gray : Color.triviaButton)
                     .foregroundColor(.white)
                     .cornerRadius(12)
 
@@ -70,12 +109,15 @@ struct PlayerGuessView: View {
             .padding()
             .frame(maxWidth: 400)
         }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        }
         .onAppear {
             loadAllPlayers()
         }
     }
 
     func loadAllPlayers() {
+        isSearchFieldFocused = true
         let db = Firestore.firestore()
         db.collection("NFLplayers")
             .order(by: "difficulty", descending: false)
@@ -91,6 +133,7 @@ struct PlayerGuessView: View {
                 }
 
                 self.allPlayers = documents.compactMap { try? $0.data(as: Player.self) }
+                self.allPlayerNames = self.allPlayers.map { $0.name }
                 self.currentIndex = 0
                 self.currentPlayer = self.allPlayers.first
             }
@@ -98,8 +141,11 @@ struct PlayerGuessView: View {
     
     func loadNextPlayer() {
         userGuess = ""
+        searchText = ""
+        selectedGuess = nil
+        filteredSuggestions = []
         currentIndex += 1
-
+        isSearchFieldFocused = true
         if currentIndex < allPlayers.count {
             currentPlayer = allPlayers[currentIndex]
         } else {
@@ -109,11 +155,15 @@ struct PlayerGuessView: View {
 
     func checkGuess() {
         guard let player = currentPlayer else { return }
+        guard let selected = selectedGuess else {
+            feedbackText = "❌ Please select a player from the list"
+            showFeedback = true
+            return
+        }
 
-        let normalizedGuess = userGuess.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let normalizedAnswer = player.name.lowercased()
+        let isCorrect = selected.lowercased() == player.name.lowercased()
 
-        if normalizedGuess == normalizedAnswer {
+        if isCorrect {
             score += 1
             feedbackText = "✅ Correct!"
         } else {
@@ -133,4 +183,5 @@ struct PlayerGuessView: View {
             }
         }
     }
+
 }
