@@ -32,102 +32,142 @@ struct PlayerGuessView: View {
         ZStack {
             Color.triviaBackground.ignoresSafeArea()
 
-        ScrollView {
-            VStack(spacing: 24) {
-                if let player = currentPlayer, !isGameOver {
-                    AsyncImage(url: URL(string: player.imageURL)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable()
-                                 .scaledToFit()
-                                 .frame(height: 300)
-                        case .failure(_):
-                            Text("⚠️ Failed to load image")
-                        case .empty:
-                            ProgressView()
-                        @unknown default:
-                            EmptyView()
+            ScrollView {
+                VStack(spacing: 16) {
+                    
+                    if isGameOver {
+                        VStack(spacing: 16) {
+                            Text("Game Over!")
+                                .font(.largeTitle)
+                                .foregroundColor(.white)
+                            
+                            Text("Final Score: \(score)")
+                                .font(.title2)
+                                .foregroundColor(.white) //improve screen later
                         }
-                    }
-                    VStack(alignment: .leading, spacing: 0) {
-                        TextField("Search for player...", text: $searchText)
-                            .padding()
-                            .background(Color(.systemGray6).opacity(0.2))
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                            .focused($isSearchFieldFocused)
-                            .onChange(of: searchText) {
-                                if searchText.count >= 3 { //number of characters required for suggested search to appear
-                                    filteredSuggestions = allPlayerNames
-                                        .filter { $0.name.lowercased().contains(searchText.lowercased()) }
-                                        .sorted { $0.seasons > $1.seasons }
-                                        .prefix(5)
-                                        .map { $0.name }
-                                } else {
-                                    filteredSuggestions = []
+                    } else {
+                        // 🔼 Lives + Score
+                        HStack {
+                            Text("Lives: \(lives)")
+                            Spacer()
+                            Text("Score: \(score)")
+                        }
+                        .foregroundColor(.white)
+                        .font(.headline)
+                        .padding(.horizontal)
+                        
+                        // 🕓 Progress bar
+                        ProgressView(value: min(max(timeRemaining, 0), 15), total: 15)
+                            .progressViewStyle(LinearProgressViewStyle())
+                            .accentColor(Color.triviaButton)
+                            .scaleEffect(x: 1, y: 2)
+                            .padding(.horizontal)
+                        
+                        // 🖼️ Image
+                        if let player = currentPlayer, !isGameOver {
+                            AsyncImage(url: URL(string: player.imageURL)) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    ZStack(alignment: .bottom) {
+                                        image
+                                            .resizable()
+                                            .scaledToFit()
+                                            .cornerRadius(10)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(
+                                                        showFeedback
+                                                            ? (feedbackText.contains("✅") ? Color.green : Color.red)
+                                                            : Color.clear,
+                                                        lineWidth: 4
+                                                    )
+                                            )
+
+                                        if showFeedback {
+                                            Text(feedbackText)
+                                                .foregroundColor(.white)
+                                                .font(.headline)
+                                                .padding(6)
+                                                .background(
+                                                    Capsule()
+                                                        .fill(feedbackText.contains("✅") ? Color.green : Color.red)
+                                                )
+                                                .padding(.bottom, 12)
+                                                .transition(.opacity)
+                                                .animation(.easeInOut(duration: 0.3), value: showFeedback)
+                                        }
+                                    }
+                                    .frame(height: 250) // 🖼 Controls the whole block's size
+
+                                case .failure(_):
+                                    Text("⚠️ Image failed to load")
+
+                                case .empty:
+                                    ProgressView()
+
+                                @unknown default:
+                                    EmptyView()
                                 }
                             }
+                        }
 
-
-                        ScrollView {
-                            VStack(spacing: 0) {
-                                ForEach(filteredSuggestions, id: \.self) { name in
-                                    Button(action: {
-                                        selectedGuess = name
-                                        searchText = name
+                        
+                        // 🔍 Search field + suggestions
+                        VStack(alignment: .leading, spacing: 0) {
+                            TextField("Search for player...", text: $searchText)
+                                .padding()
+                                .background(Color(.systemGray6).opacity(0.2))
+                                .cornerRadius(10)
+                                .foregroundColor(.white)
+                                .focused($isSearchFieldFocused)
+                                .autocorrectionDisabled(true)
+                                .textInputAutocapitalization(.never)
+                                .onChange(of: searchText) {
+                                    if searchText.count >= 3 {
+                                        filteredSuggestions = allPlayerNames
+                                            .filter { $0.name.lowercased().contains(searchText.lowercased()) }
+                                            .sorted { $0.seasons > $1.seasons }
+                                            .prefix(5)
+                                            .map { $0.name }
+                                    } else {
                                         filteredSuggestions = []
-                                        checkGuess()
-                                    }) {
-                                        Text(name)
-                                            .foregroundColor(.white)
-                                            .padding(.vertical, 4)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
                                     }
                                 }
+                            
+                            ForEach(filteredSuggestions, id: \.self) { name in
+                                Button(action: {
+                                    selectedGuess = name
+                                    searchText = name
+                                    filteredSuggestions = []
+                                    checkGuess()
+                                }) {
+                                    Text(name)
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 4)
+                                }
                             }
                         }
-                        .frame(height: 120)
-                        .background(Color(.systemGray6).opacity(0.2))
-                        .cornerRadius(10)
+                        
+                        /* 🟧 Submit button (removed because we're auto-submitting, and it's broken anyway)
+                         if selectedGuess != nil {
+                         Button("Submit Guess") {
+                         checkGuess()
+                         }
+                         .padding()
+                         .frame(maxWidth: .infinity)
+                         .background(Color.triviaButton)
+                         .foregroundColor(.white)
+                         .cornerRadius(10)
+                         }*/
+                        
                     }
-
-                    Button("Submit Guess") {
-                        checkGuess()
-                    }
-                    .disabled(selectedGuess == nil)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(selectedGuess == nil ? Color.gray : Color.triviaButton)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
-
-                    Text("Lives: \(lives) | Score: \(score)")
-                        .foregroundColor(.white)
-                    
-                    ProgressView(value: min(max(timeRemaining, 0), 15), total: 15)
-                        .progressViewStyle(LinearProgressViewStyle())
-                        .accentColor(Color.triviaButton)
-                        .scaleEffect(x: 1, y: 2, anchor: .center)
-                        .padding(.horizontal)
-
-                    if showFeedback {
-                        Text(feedbackText)
-                            .foregroundColor(.white)
-                            .font(.headline)
-                    }
-                } else if isGameOver {
-                    Text("Game Over! Final Score: \(score)")
-                        .font(.title)
-                        .foregroundColor(.white)
-                } else {
-                    ProgressView()
                 }
-            }
-            .padding()
-            .frame(maxWidth: 400)
-        }
+                            .padding()
+                            .frame(maxWidth: 400)
+                }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+
         .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .onAppear {
@@ -191,11 +231,12 @@ struct PlayerGuessView: View {
         currentIndex += 1
         isSearchFieldFocused = true
         if currentIndex < allPlayers.count {
-            currentPlayer = allPlayers[currentIndex]
-        } else {
-            isGameOver = true
-        }
-        startTimer()
+                currentPlayer = allPlayers[currentIndex]
+                startTimer()
+            } else {
+                isGameOver = true
+                timer?.invalidate()
+            }
     }
 
     func checkGuess() {
@@ -217,21 +258,29 @@ struct PlayerGuessView: View {
             feedbackText = "❌ Wrong! That was \(player.name)"
         }
 
-        showFeedback = true
+        withAnimation {
+            showFeedback = true
+        }
 
         timer?.invalidate() // Stop the timer on manual submission
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            showFeedback = false
-
-            if lives == 0 {
-                isGameOver = true
-                timer?.invalidate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation {
+                showFeedback = false
             }
-            else {
-                loadNextPlayer()
+
+            // Add a short delay before switching players so the fade-out completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                if lives == 0 || currentIndex + 1 >= allPlayers.count {
+                    isGameOver = true
+                    timer?.invalidate()
+                    return
+                } else {
+                    loadNextPlayer()
+                }
             }
         }
+
     }
     
     func startTimer() {
@@ -256,15 +305,27 @@ struct PlayerGuessView: View {
         feedbackText = "⏰ Time’s up! That was \(player.name)"
         showFeedback = true
 
-        if lives == 0 {
+        if lives == 0 || currentIndex + 1 >= allPlayers.count {
             isGameOver = true
             timer?.invalidate()
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            showFeedback = false
-            loadNextPlayer()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation {
+                showFeedback = false
+            }
+
+            // Add a short delay before switching players so the fade-out completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                if lives == 0 || currentIndex + 1 >= allPlayers.count {
+                    isGameOver = true
+                    timer?.invalidate()
+                    return
+                } else {
+                    loadNextPlayer()
+                }
+            }
         }
     }
 
