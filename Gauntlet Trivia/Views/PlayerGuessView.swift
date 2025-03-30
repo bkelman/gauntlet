@@ -47,14 +47,42 @@ struct PlayerGuessView: View {
                         }
                     } else {
                         // 🔼 Lives + Score
-                        HStack {
-                            Text("Lives: \(lives)")
+                        HStack(alignment: .top) {
+                            // ⬅️ Left Side: Wordmark + Date
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Gauntlet Trivia")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+
+                                Text(formattedDate())
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+
                             Spacer()
-                            Text("Score: \(score)")
+
+                            // ➡️ Right Side: Lives + Score
+                            VStack(alignment: .trailing, spacing: 8) {
+                                // ❤️ Lives (video game style)
+                                HStack(spacing: 4) {
+                                    ForEach(0..<3, id: \.self) { index in
+                                        Image(systemName: "heart.fill")
+                                            .foregroundColor(index < lives ? .red : .gray)
+                                            .shadow(radius: index < lives ? 2 : 0)
+                                    }
+                                }
+
+                                // ⭐ Score
+                                HStack(spacing: 4) {
+                                    Image(systemName: "star.fill")
+                                        .shadow(radius: 2)
+                                    Text("Score: \(score)")
+                                }
+                                .foregroundColor(Color.yellow)
+                            }
                         }
-                        .foregroundColor(.white)
-                        .font(.headline)
                         .padding(.horizontal)
+                        .padding(.top, 8)
                         
                         // 🕓 Progress bar
                         ProgressView(value: min(max(timeRemaining, 0), 15), total: 15)
@@ -176,6 +204,12 @@ struct PlayerGuessView: View {
         }
     }
 
+    func formattedDate() -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: Date())
+    }
+    
     func loadAllPlayers() {
         isSearchFieldFocused = true
         let db = Firestore.firestore()
@@ -300,22 +334,22 @@ struct PlayerGuessView: View {
     
     func handleTimeout() {
         guard let player = currentPlayer else { return }
-
+        
         lives -= 1
         feedbackText = "⏰ Time’s up! That was \(player.name)"
         showFeedback = true
-
+        
         if lives == 0 || currentIndex + 1 >= allPlayers.count {
             isGameOver = true
             timer?.invalidate()
             return
         }
-
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
             withAnimation {
                 showFeedback = false
             }
-
+            
             // Add a short delay before switching players so the fade-out completes
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 if lives == 0 || currentIndex + 1 >= allPlayers.count {
@@ -327,7 +361,13 @@ struct PlayerGuessView: View {
                 }
             }
         }
+
     }
 
 
 }
+
+#Preview {
+    PlayerGuessView()
+}
+
