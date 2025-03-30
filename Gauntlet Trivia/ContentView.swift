@@ -7,7 +7,7 @@ struct ContentView: View {
     @State private var useImageMode = true
     var body: some View {
         if useImageMode {
-            PlayerGuessView()
+            LandingView()
         } else {
             MultipleChoiceTriviaView()
         }

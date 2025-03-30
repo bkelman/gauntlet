@@ -1,19 +1,25 @@
+// Updated to remove lives system and add summary result tracking
 import SwiftUI
 import Firebase
 import FirebaseFirestore
 import FirebaseFirestoreSwift
 
-struct PlayerName: Identifiable {
+struct PlayerName: Identifiable, Codable {
     var id = UUID()
     var name: String
     var seasons: Int
+}
+
+struct PlayerResult: Identifiable {
+    let id = UUID()
+    let name: String
+    let wasCorrect: Bool
 }
 
 struct PlayerGuessView: View {
     @State private var currentPlayer: Player?
     @State private var userGuess = ""
     @State private var score = 0
-    @State private var lives = 3
     @State private var showFeedback = false
     @State private var feedbackText = ""
     @State private var isGameOver = false
@@ -26,6 +32,7 @@ struct PlayerGuessView: View {
     @State private var timeRemaining: Double = 15.0
     @State private var timer: Timer?
     @State private var isTimerRunning = false
+    @State private var results: [PlayerResult] = []
     @FocusState private var isSearchFieldFocused: Bool
 
     let dateFormatter: DateFormatter = {
@@ -46,9 +53,25 @@ struct PlayerGuessView: View {
                                 .font(.largeTitle)
                                 .foregroundColor(.white)
 
-                            Text("Final Score: \(score)")
-                                .font(.title2)
-                                .foregroundColor(.white)
+                            Text("Final Score: \(score)/\(results.count)")
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [Color.primaryColor, .yellow, .orange],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .shadow(color: .yellow.opacity(0.6), radius: 4, x: 0, y: 2)
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(results) { result in
+                                    Text(result.name)
+                                        .foregroundColor(result.wasCorrect ? .green : .red)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                            .padding(.top)
                         }
                     } else {
                         HStack(alignment: .top) {
@@ -71,20 +94,22 @@ struct PlayerGuessView: View {
 
                             VStack(spacing: 2) {
                                 HStack(spacing: 4) {
-                                    ForEach(0..<3) { index in
-                                        Image(systemName: index < lives ? "heart.fill" : "heart")
-                                            .foregroundColor(index < lives ? .red : .gray)
+                                    Image(systemName: "star.fill")
+                                        .foregroundStyle(LinearGradient(
+                                        colors: [Color.primaryColor, .yellow, .orange],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing))
+                                        .shadow(color: .yellow.opacity(0.6), radius: 4, x: 0, y: 2)
+                                    Text("\(score)")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(LinearGradient(
+                                        colors: [Color.primaryColor, .yellow, .orange],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing))
+                                        .shadow(color: .yellow.opacity(0.6), radius: 2, x: 0, y: 1)
                                     }
                                 }
-                                HStack(spacing: 4) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundColor(Color.primaryColor)
-                                    Text("\(score)")
-                                        .foregroundColor(Color.primaryColor)
-                                        .font(.subheadline.bold())
-                                }
                             }
-                        }
                         .padding(.horizontal)
                         .padding(.top, 4)
 
@@ -196,12 +221,121 @@ struct PlayerGuessView: View {
         }
     }
 
-    func formattedDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        return formatter.string(from: Date())
+    func checkGuess() {
+        guard let player = currentPlayer else { return }
+        guard let selected = selectedGuess else {
+            feedbackText = "❌ Please select a player from the list"
+            showFeedback = true
+            return
+        }
+
+        let isCorrect = selected.lowercased() == player.name.lowercased()
+        results.append(PlayerResult(name: player.name, wasCorrect: isCorrect))
+
+        if isCorrect {
+            score += 1
+            feedbackText = "✅ Correct!"
+        } else {
+            feedbackText = "❌ Wrong! That was \(player.name)"
+        }
+
+        withAnimation {
+            showFeedback = true
+        }
+
+        timer?.invalidate()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation {
+                showFeedback = false
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                currentIndex += 1
+                if currentIndex < allPlayers.count {
+                    currentPlayer = allPlayers[currentIndex]
+                    searchText = ""
+                    selectedGuess = nil
+                    filteredSuggestions = []
+                    startTimer()
+                } else {
+                    isGameOver = true
+                    saveResultsToFirestore()
+                }
+            }
+        }
     }
+
+    func saveResultsToFirestore() {
+        guard let user = Auth.auth().currentUser else {
+            print("⚠️ No user logged in.")
+            return
+        }
+
+        let today = dateFormatter.string(from: Date())
+        let db = Firestore.firestore()
+
+        let data: [String: Any] = [
+            "score": score,
+            "total": results.count,
+            "results": results.map { ["name": $0.name, "wasCorrect": $0.wasCorrect] }
+        ]
+
+        db.collection("gameResults")
+            .document(user.uid)
+            .collection("daily")
+            .document(today)
+            .setData(data) { error in
+                if let error = error {
+                    print("❌ Failed to save game results: \(error.localizedDescription)")
+                } else {
+                    print("✅ Game results saved successfully for \(today)")
+                }
+            }
+    }
+
     
+    func startTimer() {
+        timeRemaining = 15.0
+        isTimerRunning = true
+
+        timer?.invalidate()
+
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            timeRemaining -= 0.1
+            if timeRemaining <= 0 {
+                timer?.invalidate()
+                handleTimeout()
+            }
+        }
+    }
+
+    func handleTimeout() {
+        guard let player = currentPlayer else { return }
+        results.append(PlayerResult(name: player.name, wasCorrect: false))
+        feedbackText = "⏰ Time’s up! That was \(player.name)"
+        showFeedback = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation {
+                showFeedback = false
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                currentIndex += 1
+                if currentIndex < allPlayers.count {
+                    currentPlayer = allPlayers[currentIndex]
+                    searchText = ""
+                    selectedGuess = nil
+                    filteredSuggestions = []
+                    startTimer()
+                } else {
+                    isGameOver = true
+                }
+            }
+        }
+    }
+
     func loadAllPlayers() {
         isSearchFieldFocused = true
         let db = Firestore.firestore()
@@ -221,12 +355,27 @@ struct PlayerGuessView: View {
                 self.allPlayers = documents.compactMap { try? $0.data(as: Player.self) }
                 self.currentIndex = 0
                 self.currentPlayer = self.allPlayers.first
-                startTimer() // start the timer for the first player
+                startTimer()
             }
     }
-    
+
     func loadAllPlayerNames() {
         let db = Firestore.firestore()
+        let cacheKey = "playerNamesCache"
+        let timestampKey = "playerNamesTimestamp"
+        let now = Date()
+        
+        // Check if we have a recent cached version
+        if let data = UserDefaults.standard.data(forKey: cacheKey),
+           let timestamp = UserDefaults.standard.object(forKey: timestampKey) as? Date,
+           now.timeIntervalSince(timestamp) < 86400, // 86400 seconds = 24 hours
+           let cached = try? JSONDecoder().decode([PlayerName].self, from: data) {
+            self.allPlayerNames = cached
+            print("✅ Loaded player names from cache")
+            return
+        }
+
+        // Otherwise fetch from Firestore
         db.collection("playerNames").getDocuments { snapshot, error in
             if let error = error {
                 print("❌ Error loading player names: \(error.localizedDescription)")
@@ -238,122 +387,21 @@ struct PlayerGuessView: View {
                 return
             }
 
-            self.allPlayerNames = documents.compactMap { doc in
+            let names: [PlayerName] = documents.compactMap { doc in
                 guard let name = doc["name"] as? String else { return nil }
                 let seasons = doc["seasons"] as? Int ?? 0
                 return PlayerName(name: name, seasons: seasons)
             }
 
-            print("✅ Loaded \(self.allPlayerNames.count) player names")
-        }
-    }
+            self.allPlayerNames = names
+            print("✅ Fetched and cached \(names.count) player names")
 
-    
-    func loadNextPlayer() {
-        userGuess = ""
-        searchText = ""
-        selectedGuess = nil
-        filteredSuggestions = []
-        currentIndex += 1
-        isSearchFieldFocused = true
-        if currentIndex < allPlayers.count {
-                currentPlayer = allPlayers[currentIndex]
-                startTimer()
-            } else {
-                isGameOver = true
-                timer?.invalidate()
-            }
-    }
-
-    func checkGuess() {
-        guard let player = currentPlayer else { return }
-        guard let selected = selectedGuess else {
-            feedbackText = "❌ Please select a player from the list"
-            showFeedback = true
-            return
-        }
-        
-        
-        let isCorrect = selected.lowercased() == player.name.lowercased()
-        
-        if isCorrect {
-            score += 1
-            feedbackText = "✅ Correct!"
-        } else {
-            lives -= 1
-            feedbackText = "❌ Wrong! That was \(player.name)"
-        }
-
-        withAnimation {
-            showFeedback = true
-        }
-
-        timer?.invalidate() // Stop the timer on manual submission
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            withAnimation {
-                showFeedback = false
-            }
-
-            // Add a short delay before switching players so the fade-out completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                if lives == 0 || currentIndex + 1 >= allPlayers.count {
-                    isGameOver = true
-                    timer?.invalidate()
-                    return
-                } else {
-                    loadNextPlayer()
-                }
+            // Save to cache
+            if let encoded = try? JSONEncoder().encode(names) {
+                UserDefaults.standard.set(encoded, forKey: cacheKey)
+                UserDefaults.standard.set(now, forKey: timestampKey)
             }
         }
-
-    }
-    
-    func startTimer() {
-        timeRemaining = 15.0
-        isTimerRunning = true
-
-        timer?.invalidate() // stop any previous timer
-
-        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            timeRemaining -= 0.1
-            if timeRemaining <= 0 {
-                timer?.invalidate()
-                handleTimeout()
-            }
-        }
-    }
-    
-    func handleTimeout() {
-        guard let player = currentPlayer else { return }
-        
-        lives -= 1
-        feedbackText = "⏰ Time’s up! That was \(player.name)"
-        showFeedback = true
-        
-        if lives == 0 || currentIndex + 1 >= allPlayers.count {
-            isGameOver = true
-            timer?.invalidate()
-            return
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            withAnimation {
-                showFeedback = false
-            }
-            
-            // Add a short delay before switching players so the fade-out completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                if lives == 0 || currentIndex + 1 >= allPlayers.count {
-                    isGameOver = true
-                    timer?.invalidate()
-                    return
-                } else {
-                    loadNextPlayer()
-                }
-            }
-        }
-
     }
 
 
@@ -362,4 +410,3 @@ struct PlayerGuessView: View {
 #Preview {
     PlayerGuessView()
 }
-
