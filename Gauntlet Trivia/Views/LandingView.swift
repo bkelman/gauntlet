@@ -66,7 +66,7 @@ struct LandingView: View {
                 }
             }
             .navigationDestination(isPresented: $navigateToGame) {
-                PlayerGuessView()
+                DailyGameView()
             }
         }
         .onAppear {
@@ -107,5 +107,5 @@ struct LandingView: View {
     }
 }
 #Preview {
-    PlayerGuessView()
+    DailyGameView()
 }

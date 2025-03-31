@@ -16,7 +16,8 @@ struct PlayerResult: Identifiable {
     let wasCorrect: Bool
 }
 
-struct PlayerGuessView: View {
+struct DailyGameView: View {
+    @Environment(\.dismiss) var dismiss
     @State private var currentPlayer: Player?
     @State private var userGuess = ""
     @State private var score = 0
@@ -48,116 +49,25 @@ struct PlayerGuessView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     if isGameOver {
-                        VStack(spacing: 16) {
-                            Text("Game Over!")
-                                .font(.largeTitle)
-                                .foregroundColor(.white)
-
-                            Text("Final Score: \(score)/\(results.count)")
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundStyle(
-                                    LinearGradient(
-                                        colors: [Color.primaryColor, .yellow, .orange],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .shadow(color: .yellow.opacity(0.6), radius: 4, x: 0, y: 2)
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(results) { result in
-                                    Text(result.name)
-                                        .foregroundColor(result.wasCorrect ? .green : .red)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
-                            }
-                            .padding(.top)
-                        }
-                    } else {
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 0) {
-                                HStack(spacing: 0) {
-                                    Text("GAUNTLET")
-                                        .foregroundColor(Color.primaryColor)
-                                        .font(.headline.bold())
-                                    Text(" TRIVIA")
-                                        .foregroundColor(Color.secondaryColor)
-                                        .font(.headline.bold())
-                                }
-                                Text(dateFormatter.string(from: Date()))
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                    .padding(.top, 1)
-                            }
-
-                            Spacer()
-
-                            VStack(spacing: 2) {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "star.fill")
-                                        .foregroundStyle(LinearGradient(
-                                        colors: [Color.primaryColor, .yellow, .orange],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing))
-                                        .shadow(color: .yellow.opacity(0.6), radius: 4, x: 0, y: 2)
-                                    Text("\(score)")
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(LinearGradient(
-                                        colors: [Color.primaryColor, .yellow, .orange],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing))
-                                        .shadow(color: .yellow.opacity(0.6), radius: 2, x: 0, y: 1)
-                                    }
-                                }
-                            }
-                        .padding(.horizontal)
-                        .padding(.top, 4)
-
+                        GameOverSummaryView(
+                            score: score,
+                            total: results.count,
+                            results: results
+                        )
+                    }
+                    else {
+                        GameHeaderView(date: dateFormatter.string(from: Date()), score: score, onBack: {
+                            dismiss()
+                        })
                         Divider()
                             .background(Color.white.opacity(0.1))
 
                         if let player = currentPlayer, !isGameOver {
-                            AsyncImage(url: URL(string: player.imageURL)) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    ZStack(alignment: .bottom) {
-                                        image
-                                            .resizable()
-                                            .scaledToFit()
-                                            .cornerRadius(10)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .stroke(
-                                                        showFeedback
-                                                            ? (feedbackText.contains("✅") ? Color.green : Color.red)
-                                                            : Color.clear,
-                                                        lineWidth: 4
-                                                    )
-                                            )
-
-                                        if showFeedback {
-                                            Text(feedbackText)
-                                                .foregroundColor(.white)
-                                                .font(.headline)
-                                                .padding(6)
-                                                .background(
-                                                    Capsule()
-                                                        .fill(feedbackText.contains("✅") ? Color.green : Color.red)
-                                                )
-                                                .padding(.bottom, 12)
-                                                .transition(.opacity)
-                                                .animation(.easeInOut(duration: 0.3), value: showFeedback)
-                                        }
-                                    }
-                                    .frame(maxHeight: 225)
-                                case .failure(_):
-                                    Text("⚠️ Image failed to load")
-                                case .empty:
-                                    ProgressView()
-                                @unknown default:
-                                    EmptyView()
-                                }
-                            }
+                            PlayerImageView(
+                                    imageURL: player.imageURL,
+                                    feedbackText: feedbackText,
+                                    showFeedback: showFeedback
+                                )
                         }
 
                         ProgressView(value: min(max(timeRemaining, 0), 15), total: 15)
@@ -168,44 +78,26 @@ struct PlayerGuessView: View {
                             .padding(.top, 8)
                             .padding(.bottom, 4)
 
-                        VStack(alignment: .leading, spacing: 0) {
-                            TextField("Search for player...", text: $searchText)
-                                .padding(10)
-                                .background(Color.white.opacity(0.08))
-                                .foregroundColor(.white)
-                                .autocorrectionDisabled(true)
-                                .textInputAutocapitalization(.never)
-                                .keyboardType(.default)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.primaryColor.opacity(0.6), lineWidth: 1)
-                                )
-                                .cornerRadius(8)
-                                .focused($isSearchFieldFocused)
-                                .onChange(of: searchText) {
-                                    if searchText.count >= 3 {
-                                        filteredSuggestions = allPlayerNames
-                                            .filter { $0.name.lowercased().contains(searchText.lowercased()) }
-                                            .sorted { $0.seasons > $1.seasons }
-                                            .prefix(5)
-                                            .map { $0.name }
-                                    } else {
-                                        filteredSuggestions = []
-                                    }
-                                }
-
-                            ForEach(filteredSuggestions, id: \ .self) { name in
-                                Button(action: {
-                                    selectedGuess = name
-                                    searchText = name
-                                    filteredSuggestions = []
-                                    checkGuess()
-                                }) {
-                                    Text(name)
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .padding(.vertical, 4)
-                                }
+                        PlayerSearchView(
+                            searchText: $searchText,
+                            selectedGuess: $selectedGuess,
+                            suggestions: filteredSuggestions,
+                            onGuessSelected: { name in
+                                searchText = name
+                                filteredSuggestions = []
+                                checkGuess()
+                            }
+                        )
+                        .focused($isSearchFieldFocused)
+                        .onChange(of: searchText) {
+                            if searchText.count >= 3 {
+                                filteredSuggestions = allPlayerNames
+                                    .filter { $0.name.lowercased().contains(searchText.lowercased()) }
+                                    .sorted { $0.seasons > $1.seasons }
+                                    .prefix(5)
+                                    .map { $0.name }
+                            } else {
+                                filteredSuggestions = []
                             }
                         }
                     }
@@ -215,6 +107,7 @@ struct PlayerGuessView: View {
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
+        .navigationBarBackButtonHidden(true)
         .onAppear {
             loadAllPlayers()
             loadAllPlayerNames()
@@ -408,5 +301,6 @@ struct PlayerGuessView: View {
 }
 
 #Preview {
-    PlayerGuessView()
+    DailyGameView()
 }
+
