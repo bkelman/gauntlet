@@ -6,75 +6,92 @@ struct SignInView: View {
     @State private var password = ""
     @State private var errorMessage: String?
     @State private var isSignedIn = false
-    @State private var showLaunchScreen = true
-    @State private var showLoginFields = false
-    @State private var logoOffsetY: CGFloat = 0
-    @State private var logoAtTop = false
+    @FocusState private var focusedField: Field?
+
+    enum Field {
+        case email, password
+    }
 
     var body: some View {
-  
         ZStack {
             Color.triviaBackground.ignoresSafeArea()
 
-            VStack {
-                Spacer()
-
+            ScrollView {
                 VStack(spacing: 24) {
-                    Image("Logo")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 350, height: 350)
-                        .offset(y: logoOffsetY)
+                    Spacer(minLength: 40)
 
-                    if showLoginFields {
-                        VStack(spacing: 16) {
-                            TextField("Email", text: $email)
+                    // 🔤 Styled wordmark like header
+                    VStack(spacing: 4) {
+                        HStack(spacing: 0) {
+                            Text("GAUNTLET")
+                                .foregroundColor(Color.primaryColor)
+                                .font(.largeTitle.bold())
+                            Text(" TRIVIA")
+                                .foregroundColor(Color.secondaryColor)
+                                .font(.largeTitle.bold())
+                        }
+                        .multilineTextAlignment(.center)
+
+                        Text("Sign in to play today’s game")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+
+                    VStack(spacing: 14) {
+                        TextField("Email", text: $email)
+                            .padding()
+                            .background(Color.white.opacity(0.08))
+                            .foregroundColor(.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.primaryColor.opacity(0.6))
+                            )
+                            .cornerRadius(8)
+                            .keyboardType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .focused($focusedField, equals: .email)
+
+                        SecureField("Password", text: $password)
+                            .padding()
+                            .background(Color.white.opacity(0.08))
+                            .foregroundColor(.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.primaryColor.opacity(0.6))
+                            )
+                            .cornerRadius(8)
+                            .focused($focusedField, equals: .password)
+
+                        Button(action: signInOrRegister) {
+                            Text("Sign In / Register")
                                 .padding()
-                                .background(Color(.systemGray6).opacity(0.2))
+                                .frame(maxWidth: .infinity)
+                                .background(Color.primaryColor)
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
-                                .autocapitalization(.none)
-                                .disableAutocorrection(true)
+                        }
 
-                            SecureField("Password", text: $password)
-                                .padding()
-                                .background(Color(.systemGray6).opacity(0.2))
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-
-                            Button(action: signInOrRegister) {
-                                Text("Sign In / Register")
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.triviaButton)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(12)
-                            }
+                        if let errorMessage = errorMessage {
+                            Text(errorMessage)
+                                .foregroundColor(.red)
+                                .font(.footnote)
+                                .multilineTextAlignment(.center)
                         }
                     }
+
+                    Spacer(minLength: 20) // Keeps button visible above keyboard
                 }
-
-                Spacer()
+                .padding()
+                .frame(maxWidth: 400)
             }
-            .padding(.horizontal)
-            .frame(maxWidth: 400)
+            .onTapGesture {
+                focusedField = nil
+            }
         }
-
-
-
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .fullScreenCover(isPresented: $isSignedIn) {
-            ContentView() // show main game screen once signed in
-        }
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                withAnimation(.easeInOut(duration: 0.8)) {
-                    logoOffsetY = -80
-                }
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    showLoginFields = true
-                }
-            }
+            ContentView()
         }
     }
 
@@ -83,7 +100,6 @@ struct SignInView: View {
             if result != nil {
                 self.isSignedIn = true
             } else {
-                // Sign-in failed – try registering instead
                 Auth.auth().createUser(withEmail: email, password: password) { result, error in
                     if result != nil {
                         self.isSignedIn = true
@@ -94,5 +110,4 @@ struct SignInView: View {
             }
         }
     }
-
 }
