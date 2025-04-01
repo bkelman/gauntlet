@@ -94,8 +94,8 @@ struct DailyGameView: View {
                             if searchText.count >= 3 {
                                 filteredSuggestions = allPlayerNames
                                     .filter { $0.name.lowercased().contains(searchText.lowercased()) }
-                                    .sorted { $0.seasons > $1.seasons }
-                                    .prefix(5)
+                                    .sorted { $0.seasons > $1.seasons }  // Sort by seasons played in descending order
+                                    .prefix(5)  // Limit to the first 5 suggestions
                                     .map { $0.name }
                             } else {
                                 filteredSuggestions = []
@@ -110,8 +110,110 @@ struct DailyGameView: View {
         }
         .navigationBarBackButtonHidden(true)
         .onAppear {
-            loadAllPlayers()
-            loadAllPlayerNames()
+            loadAllPlayerNames()  // Make sure player names are loaded
+            loadAllPlayers()      // Load all players for today's game
+        }
+    }
+
+    func loadAllPlayerNames() {
+        let db = Firestore.firestore()
+        let cacheKey = "playerNamesCache"
+        let timestampKey = "playerNamesTimestamp"
+        let now = Date()
+
+        // Check if we have a recent cached version
+        if let data = UserDefaults.standard.data(forKey: cacheKey),
+           let timestamp = UserDefaults.standard.object(forKey: timestampKey) as? Date,
+           now.timeIntervalSince(timestamp) < 604800 { // 604800 seconds = 7 days
+            if let cached = try? JSONDecoder().decode([PlayerName].self, from: data) {
+                self.allPlayerNames = cached
+                print("✅ Loaded player names from cache")
+                return
+            }
+        }
+
+        // Otherwise fetch from Firestore
+        db.collection("playerNames").getDocuments { snapshot, error in
+            if let error = error {
+                print("❌ Error loading player names: \(error.localizedDescription)")
+                return
+            }
+
+            guard let documents = snapshot?.documents else {
+                print("⚠️ No player names found")
+                return
+            }
+
+            let names: [PlayerName] = documents.compactMap { doc in
+                guard let name = doc["name"] as? String else { return nil }
+                let seasons = doc["seasons"] as? Int ?? 0
+                return PlayerName(name: name, seasons: seasons)
+            }
+
+            self.allPlayerNames = names
+            print("✅ Fetched and cached \(names.count) player names")
+
+            // Save to cache
+            if let encoded = try? JSONEncoder().encode(names) {
+                UserDefaults.standard.set(encoded, forKey: cacheKey)
+                UserDefaults.standard.set(now, forKey: timestampKey)
+            }
+        }
+    }
+
+    func loadAllPlayers() {
+        isSearchFieldFocused = true
+        let db = Firestore.firestore()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        let today = formatter.string(from: Date())
+
+        db.collection("NFLpacks")
+            .document(today)
+            .getDocument { snapshot, error in
+                if let error = error {
+                    print("❌ Error loading today's pack: \(error.localizedDescription)")
+                    return
+                }
+
+                guard let document = snapshot, document.exists else {
+                    print("⚠️ No pack found for today")
+                    return
+                }
+
+                let playerIds = document.get("playerIds") as? [String] ?? []
+                self.loadPlayersFromIds(playerIds)
+            }
+    }
+
+    func loadPlayersFromIds(_ ids: [String]) {
+        let db = Firestore.firestore()
+
+        var players: [Player] = []
+
+        // Fetch each player document individually
+        let dispatchGroup = DispatchGroup()
+
+        for id in ids {
+            dispatchGroup.enter()
+            db.collection("NFLplayers").document(id).getDocument { snapshot, error in
+                if let error = error {
+                    print("❌ Error fetching player \(id): \(error.localizedDescription)")
+                } else if let snapshot = snapshot, snapshot.exists,
+                          let player = try? snapshot.data(as: Player.self) {
+                    players.append(player)
+                }
+                dispatchGroup.leave()
+                print("Loaded players: \(players)")
+            }
+        }
+
+        dispatchGroup.notify(queue: .main) {
+            // After all players are fetched, update state
+            self.allPlayers = players
+            self.currentIndex = 0
+            self.currentPlayer = self.allPlayers.first
+            self.startTimer()
         }
     }
 
@@ -235,75 +337,6 @@ struct DailyGameView: View {
             }
         }
     }
-
-    func loadAllPlayers() {
-        isSearchFieldFocused = true
-        let db = Firestore.firestore()
-        db.collection("NFLplayers")
-            .order(by: "difficulty", descending: false)
-            .getDocuments { snapshot, error in
-                if let error = error {
-                    print("❌ Error loading players: \(error.localizedDescription)")
-                    return
-                }
-
-                guard let documents = snapshot?.documents, !documents.isEmpty else {
-                    print("⚠️ No players found")
-                    return
-                }
-
-                self.allPlayers = documents.compactMap { try? $0.data(as: Player.self) }
-                self.currentIndex = 0
-                self.currentPlayer = self.allPlayers.first
-                startTimer()
-            }
-    }
-
-    func loadAllPlayerNames() {
-        let db = Firestore.firestore()
-        let cacheKey = "playerNamesCache"
-        let timestampKey = "playerNamesTimestamp"
-        let now = Date()
-        
-        // Check if we have a recent cached version
-        if let data = UserDefaults.standard.data(forKey: cacheKey),
-           let timestamp = UserDefaults.standard.object(forKey: timestampKey) as? Date,
-           now.timeIntervalSince(timestamp) < 604800, // 604800 seconds = 7 days
-           let cached = try? JSONDecoder().decode([PlayerName].self, from: data) {
-            self.allPlayerNames = cached
-            print("✅ Loaded player names from cache")
-            return
-        }
-
-        // Otherwise fetch from Firestore
-        db.collection("playerNames").getDocuments { snapshot, error in
-            if let error = error {
-                print("❌ Error loading player names: \(error.localizedDescription)")
-                return
-            }
-
-            guard let documents = snapshot?.documents else {
-                print("⚠️ No player names found")
-                return
-            }
-
-            let names: [PlayerName] = documents.compactMap { doc in
-                guard let name = doc["name"] as? String else { return nil }
-                let seasons = doc["seasons"] as? Int ?? 0
-                return PlayerName(name: name, seasons: seasons)
-            }
-
-            self.allPlayerNames = names
-            print("✅ Fetched and cached \(names.count) player names")
-
-            // Save to cache
-            if let encoded = try? JSONEncoder().encode(names) {
-                UserDefaults.standard.set(encoded, forKey: cacheKey)
-                UserDefaults.standard.set(now, forKey: timestampKey)
-            }
-        }
-    }
-
 
 }
 
