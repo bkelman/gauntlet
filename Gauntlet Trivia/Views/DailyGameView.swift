@@ -1,4 +1,3 @@
-// Updated to remove lives system and add summary result tracking
 import SwiftUI
 import Firebase
 import FirebaseFirestore
@@ -34,6 +33,7 @@ struct DailyGameView: View {
     @State private var timer: Timer?
     @State private var isTimerRunning = false
     @State private var results: [PlayerResult] = []
+    @State private var isGuessLocked = false
     @FocusState private var isSearchFieldFocused: Bool
 
     let dateFormatter: DateFormatter = {
@@ -122,6 +122,9 @@ struct DailyGameView: View {
             return
         }
 
+        guard !isGuessLocked else { return }
+        isGuessLocked = true
+
         let isCorrect = selected.lowercased() == player.name.lowercased()
         results.append(PlayerResult(name: player.name, wasCorrect: isCorrect))
 
@@ -150,6 +153,7 @@ struct DailyGameView: View {
                     searchText = ""
                     selectedGuess = nil
                     filteredSuggestions = []
+                    isGuessLocked = false
                     startTimer()
                 } else {
                     isGameOver = true
@@ -165,7 +169,9 @@ struct DailyGameView: View {
             return
         }
 
-        let today = dateFormatter.string(from: Date())
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd"
+        let today = formatter.string(from: Date())
         let db = Firestore.firestore()
 
         let data: [String: Any] = [
@@ -261,7 +267,7 @@ struct DailyGameView: View {
         // Check if we have a recent cached version
         if let data = UserDefaults.standard.data(forKey: cacheKey),
            let timestamp = UserDefaults.standard.object(forKey: timestampKey) as? Date,
-           now.timeIntervalSince(timestamp) < 86400, // 86400 seconds = 24 hours
+           now.timeIntervalSince(timestamp) < 604800, // 604800 seconds = 7 days
            let cached = try? JSONDecoder().decode([PlayerName].self, from: data) {
             self.allPlayerNames = cached
             print("✅ Loaded player names from cache")
@@ -303,4 +309,3 @@ struct DailyGameView: View {
 #Preview {
     DailyGameView()
 }
-
