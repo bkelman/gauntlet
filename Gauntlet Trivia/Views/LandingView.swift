@@ -9,12 +9,24 @@ struct LandingView: View {
     @State private var navigateToGame = false
     @State private var todayScore: Int? = nil
     @State private var guessResults: [PlayerResult] = []
+    @State private var today: String = ""
 
-    let dateFormatter: DateFormatter = {
+    var formattedToday: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
+        formatter.dateFormat = "MMMM d'\(daySuffix(for: Date()))', yyyy"
+        return formatter.string(from: Date())
+    }
+
+    func daySuffix(for date: Date) -> String {
+        let calendar = Calendar.current
+        let day = calendar.component(.day, from: date)
+        switch day {
+        case 1, 21, 31: return "st"
+        case 2, 22: return "nd"
+        case 3, 23: return "rd"
+        default: return "th"
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -24,9 +36,10 @@ struct LandingView: View {
                 if isLoading {
                     ProgressView()
                 } else {
-                    VStack(spacing: 24) {
-                        // Header
-                        VStack(spacing: 0) {
+                    VStack(spacing: 48) {
+                        Spacer()
+
+                        VStack(spacing: 12) {
                             HStack(spacing: 0) {
                                 Text("GAUNTLET")
                                     .foregroundColor(Color.primaryColor)
@@ -36,40 +49,81 @@ struct LandingView: View {
                                     .font(.largeTitle.bold())
                             }
 
-                            Text("Identify the NFL player in each image")
+                            Text("Try to name 10 NFL players based on their image.")
                                 .foregroundColor(.gray)
                                 .font(.subheadline)
+                                .multilineTextAlignment(.center)
                                 .padding(.top, 4)
                         }
 
-                        if hasPlayedToday, let score = todayScore {
-                            VStack(spacing: 8) {
-                                Text("You’ve already played today!")
+                        VStack(spacing: 20) {
+                            if hasPlayedToday {
+                                NavigationLink(destination: GameOverSummaryView(score: todayScore ?? 0, total: guessResults.count, results: guessResults, onBack: { navigateToGame = false })) {
+                                    VStack {
+                                        Text("View Today’s Score")
+                                            .font(.title3.bold())
+                                            .padding(.bottom, 2)
+                                        Text("Score: \(todayScore ?? 0)/\(guessResults.count)")
+                                            .font(.caption)
+                                            .foregroundColor(.white.opacity(0.6))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.primaryColor)
                                     .foregroundColor(.white)
-                                    .font(.title2)
+                                    .cornerRadius(12)
+                                }
+                            } else {
+                                Button(action: {
+                                    navigateToGame = true
+                                }) {
+                                    VStack {
+                                        Text("Play")
+                                            .font(.title3.bold())
+                                            .padding(.bottom, 2)
+                                        Text(today)
+                                            .font(.caption)
+                                            .foregroundColor(.white.opacity(0.6))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.primaryColor)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                                }
+                            }
 
-                                Text("Score: \(score)/\(guessResults.count)")
-                                    .foregroundColor(Color.primaryColor)
-                                    .font(.title.bold())
+                            Button(action: {
+                                // Stats action placeholder
+                            }) {
+                                Text("My Stats")
+                                    .font(.title3.bold())
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.secondaryColor.opacity(0.2))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
                             }
-                        } else {
-                            Button("Play Today’s Gauntlet") {
-                                navigateToGame = true
-                            }
-                            .buttonStyle(.borderedProminent)
+                            .disabled(true)
+                            .opacity(0.3)
                         }
 
-                        // TODO: Add stats / leaderboard buttons here in future
                         Spacer()
                     }
-                    .padding()
+                    .frame(maxWidth: 400)
+                    .padding(.horizontal)
+                    .padding(.bottom, 60)
                 }
             }
             .navigationDestination(isPresented: $navigateToGame) {
                 DailyGameView()
             }
+            .navigationDestination(isPresented: .constant(false)) {
+                GameOverSummaryView(score: todayScore ?? 0, total: guessResults.count, results: guessResults, onBack: {})
+            }
         }
         .onAppear {
+            today = formattedToday
             checkIfPlayedToday()
         }
     }
@@ -81,12 +135,12 @@ struct LandingView: View {
         }
 
         let db = Firestore.firestore()
-        let today = dateFormatter.string(from: Date())
+        let todayDate = formattedToday
 
         db.collection("gameResults")
             .document(user.uid)
             .collection("daily")
-            .document(today)
+            .document(todayDate)
             .getDocument { snapshot, error in
                 self.isLoading = false
 

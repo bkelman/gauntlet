@@ -52,7 +52,8 @@ struct DailyGameView: View {
                         GameOverSummaryView(
                             score: score,
                             total: results.count,
-                            results: results
+                            results: results,
+                            onBack: { dismiss() }
                         )
                     }
                     else {
@@ -183,7 +184,7 @@ struct DailyGameView: View {
         db.collection("gameResults")
             .document(user.uid)
             .collection("daily")
-            .document(today)
+            .document("\(today)")
             .setData(data) { error in
                 if let error = error {
                     print("❌ Failed to save game results: \(error.localizedDescription)")
